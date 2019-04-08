@@ -1,11 +1,12 @@
 import React, { Component } from "react";
 import "./App.css";
 import "emoji-mart/css/emoji-mart.css";
-import { Picker } from "emoji-mart";
+// import { Picker } from "emoji-mart";
 import "semantic-ui-css/semantic.min.css";
 import Speech from "speak-tts";
 import "@material/react-switch/dist/switch.css";
 import Switch from "@material/react-switch";
+import SpeechRecognition from "react-speech-recognition";
 
 class App extends Component {
   constructor() {
@@ -17,7 +18,9 @@ class App extends Component {
       checked: false,
       error: false,
       errorMessage:
-        "Switch the toggle on top of the screen to go online. You are currently offline."
+        "Switch the toggle on top of the screen to go online. You are currently offline.",
+      listening: false,
+      keyPressed: false
     };
 
     this.speech = new Speech();
@@ -29,6 +32,12 @@ class App extends Component {
       voice: "Google UK English Male",
       splitSentences: true
     });
+
+    this.recognition = new SpeechRecognition();
+
+    this.recognition.continous = true;
+    this.recognition.interimResults = true;
+    this.recognition.lang = "en-US";
   }
 
   handleItemClick = (e, { name }) => this.setState({ activeItem: name });
@@ -102,6 +111,52 @@ class App extends Component {
     this.speech.speak({ text: status });
   };
 
+  searchEmojiHandler = () => {
+    let finalTranscript = "";
+
+    if (this.state.listening) {
+      this.recognition.start();
+
+      this.recognition.onresult = event => {
+        let interimTranscript = "";
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) finalTranscript += transcript + " ";
+          else interimTranscript += transcript;
+        }
+      };
+    } else {
+      this.recognition.end();
+    }
+    console.log(finalTranscript);
+  };
+
+  keyDownHandler = e => {
+    if (e.keyCode === 32 && this.state.keyPressed === false) {
+      this.setState(
+        {
+          listening: !this.state.listening,
+          keyPressed: !this.state.keyPressed
+        },
+        this.searchEmojiHandler
+      );
+    }
+  };
+
+  keyUpHandler = e => {
+    // debugger;
+    if (e.keyCode === 32) {
+      this.setState(
+        {
+          listening: false,
+          keyPressed: false
+        },
+        this.searchEmojiHandler
+      );
+    }
+  };
+
   render() {
     const tweets = this.state.tweets.map((tweet, i) => (
       <li key={i}>{tweet}</li>
@@ -151,29 +206,29 @@ class App extends Component {
             >
               Post your message
             </button>
+            <button
+              onKeyDown={this.keyDownHandler}
+              onKeyUp={this.keyUpHandler}
+              onFocus={e => this.onFocusHandler(e.target.innerText)}
+            >
+              Search for emoji
+            </button>
           </p>
           <aside>
             <ul style={{ listStyleType: "none" }}>{tweets}</ul>
           </aside>
         </div>
         <div>
-          <h2>Click to select emoji</h2>
-          <Picker
-            onSelect={this.addEmoji}
-            set="twitter"
-            title="emojiujitsu"
-            i18n={{
-              search: "Search",
-              categories: {
-                search: "Results of search",
-                recent: "Recents"
-              }
-            }}
-          />
+          <h2>List of emoji</h2>
+          <div>{`${this.state.listening}`}</div>
         </div>
       </div>
     );
   }
 }
 
-export default App;
+const options = {
+  autoStart: false
+};
+
+export default SpeechRecognition(options)(App);
