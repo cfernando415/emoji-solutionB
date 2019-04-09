@@ -9,8 +9,8 @@ import Switch from "@material/react-switch";
 import SpeechRecognition from "react-speech-recognition";
 
 class App extends Component {
-  constructor() {
-    super();
+  constructor(props) {
+    super(props);
     this.state = {
       activeItem: "Editor",
       tweet: "",
@@ -20,13 +20,15 @@ class App extends Component {
       errorMessage:
         "Switch the toggle on top of the screen to go online. You are currently offline.",
       listening: false,
-      keyPressed: false
+      keyPressed: false,
+      finalTranscript: "",
+      emoji: []
     };
 
     this.speech = new Speech();
     this.speech.init({
       volume: 1,
-      lang: "en-GB",
+      lang: "en-US",
       rate: 1,
       pitch: 1,
       voice: "Google UK English Male",
@@ -35,9 +37,15 @@ class App extends Component {
 
     this.recognition = new SpeechRecognition();
 
-    this.recognition.continous = true;
+    this.recognition.continous = false;
     this.recognition.interimResults = true;
     this.recognition.lang = "en-US";
+  }
+
+  componentDidMount() {
+    fetch("http://localhost:3001/emoji")
+      .then(res => res.json())
+      .then(data => this.setState({ emoji: data }));
   }
 
   handleItemClick = (e, { name }) => this.setState({ activeItem: name });
@@ -112,24 +120,20 @@ class App extends Component {
   };
 
   searchEmojiHandler = () => {
-    let finalTranscript = "";
+    const {
+      finalTranscript,
+      startListening,
+      stopListening,
+      resetTranscript
+    } = this.props;
 
     if (this.state.listening) {
-      this.recognition.start();
-
-      this.recognition.onresult = event => {
-        let interimTranscript = "";
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) finalTranscript += transcript + " ";
-          else interimTranscript += transcript;
-        }
-      };
+      startListening();
     } else {
-      this.recognition.end();
+      stopListening();
+      this.setState({ finalTranscript });
+      resetTranscript();
     }
-    console.log(finalTranscript);
   };
 
   keyDownHandler = e => {
@@ -137,7 +141,8 @@ class App extends Component {
       this.setState(
         {
           listening: !this.state.listening,
-          keyPressed: !this.state.keyPressed
+          keyPressed: !this.state.keyPressed,
+          finalTranscript: ""
         },
         this.searchEmojiHandler
       );
@@ -160,6 +165,16 @@ class App extends Component {
   render() {
     const tweets = this.state.tweets.map((tweet, i) => (
       <li key={i}>{tweet}</li>
+    ));
+
+    const emoji = this.state.emoji.map((emojiObject, i) => (
+      <span
+        tabIndex={i + 5}
+        key={emojiObject.name + "-" + i}
+        onFocus={() => this.onFocusHandler(emojiObject.name)}
+      >
+        {emojiObject.image}
+      </span>
     ));
 
     return (
@@ -192,17 +207,20 @@ class App extends Component {
             value={this.state.tweet}
             name="tweet"
             placeholder="What's on your mind?"
+            tabIndex={1}
           />
           <p>
             <button
               onClick={this.speakButton}
               onFocus={e => this.onFocusHandler(e.target.innerText)}
+              tabIndex={2}
             >
               Listen to message
             </button>
             <button
               onClick={this.handleSubmitTweet}
               onFocus={e => this.onFocusHandler(e.target.innerText)}
+              tabIndex={3}
             >
               Post your message
             </button>
@@ -210,6 +228,7 @@ class App extends Component {
               onKeyDown={this.keyDownHandler}
               onKeyUp={this.keyUpHandler}
               onFocus={e => this.onFocusHandler(e.target.innerText)}
+              tabIndex={4}
             >
               Search for emoji
             </button>
@@ -220,7 +239,7 @@ class App extends Component {
         </div>
         <div>
           <h2>List of emoji</h2>
-          <div>{`${this.state.listening}`}</div>
+          <span>{emoji}</span>
         </div>
       </div>
     );
